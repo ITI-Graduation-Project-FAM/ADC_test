@@ -57,7 +57,8 @@ static void MX_ADC1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 //uint16_t readValue;
-#define Vref 30
+//#define Vref 30  //volt
+
 #define TwoPowerResolution	4096   //12 bit res
 //---------------------Temperature sensor----------------------------//
 //double temp_val;
@@ -70,10 +71,20 @@ static void MX_ADC1_Init(void);
 //#define  R2=2000;
 
 //---------------------current sensor----------------------------//
+//website
+//https://www.engineersgarage.com/acs712-current-sensor-with-arduino/
+//http://www.energiazero.org/arduino_sensori/acs712%2030a%20range%20current%20sensor.pdf
+// voltage divider : Vcc = Vout * 2000/3000
 float current_val;
-float current_adc_val;
-#define current_offset	2.5
+float current_adc_volt;
+float current_adc_raw;
+
+#define Vref 5000  //current
+#define current_offset	2500 //Vcc/2
 #define current_Sensitivity	185
+//-------------------HW protection links---------------------//
+//https://www.circuits-diy.com/short-circuit-protection-circuit/
+
 /* USER CODE END 0 */
 
 /**
@@ -114,13 +125,15 @@ int main(void)
   while (1)
   {
 		HAL_ADC_PollForConversion(&hadc1,1000);
-		current_adc_val = HAL_ADC_GetValue(&hadc1);
+//		temp_adc_val = HAL_ADC_GetValue(&hadc1);
 //		temp_val = (temp_adc_val);	/* temp */
 //		temp_val = (temp_val/10);	/* LM35 gives output of 10mv/°C */
 //		volt_val = (volt_adc_val * Vref )/TwoPowerResolution;	/* voltage */
 //		volt=volt_val/5;  //(R2/(R1+R2))
-
-		current_val =(current_offset - ((current_adc_val*Vref)/TwoPowerResolution))/current_Sensitivity ;
+//		HAL_ADC_PollForConversion(&hadc1,1000);
+		current_adc_raw = HAL_ADC_GetValue(&hadc1);
+		current_adc_volt = (current_adc_raw*Vref)/TwoPowerResolution;
+ 		current_val =(current_adc_volt - current_offset)/current_Sensitivity ;
 
 		HAL_Delay(500);
     /* USER CODE END WHILE */
