@@ -56,30 +56,72 @@ static void MX_ADC1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void ADC_Select_CH0 ()
+{
+	  ADC_ChannelConfTypeDef sConfig = {0};
+	  sConfig.Channel = ADC_CHANNEL_0;
+	  sConfig.Rank = ADC_REGULAR_RANK_1;
+	  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
+	  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+
+}
+
+void ADC_Select_CH1 ()
+{
+	  ADC_ChannelConfTypeDef sConfig = {0};
+	  /** Configure Regular Channel
+	  */
+	  sConfig.Channel = ADC_CHANNEL_1;
+	  sConfig.Rank = ADC_REGULAR_RANK_1;
+	  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+}
+void ADC_Select_CH2 ()
+{
+	  ADC_ChannelConfTypeDef sConfig = {0};
+	  /** Configure Regular Channel
+	  */
+	  sConfig.Channel = ADC_CHANNEL_2;
+	  sConfig.Rank = ADC_REGULAR_RANK_1;
+	  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+
+}
+
+uint16_t ADC_Val[3];
+
 //uint16_t readValue;
-//#define Vref 30  //volt
+
 
 #define TwoPowerResolution	4096   //12 bit res
 //---------------------Temperature sensor----------------------------//
-//double temp_val;
-//double temp_adc_val;
+float temp_val;
+#define Temp_Vref 3000
 //---------------------voltage sensor----------------------------//
-//float volt_val;
-//float volt_adc_val;
-//float volt;
-//#define  R1=8000;
-//#define  R2=2000;
+#define Volt_Vref 5  //volt
+float volt_val;
+float volt_divider_val=5;
+float volt=0.0;
+//  R1=8k;
+//  R2=2k;
 
 //---------------------current sensor----------------------------//
 //website
 //https://www.engineersgarage.com/acs712-current-sensor-with-arduino/
 //http://www.energiazero.org/arduino_sensori/acs712%2030a%20range%20current%20sensor.pdf
-// voltage divider : Vcc = Vout * 2000/3000
+// voltage divider : Vcc = Vout * 2000/3000  R1=1k R2=2k
 float current_val;
 float current_adc_volt;
 float current_adc_raw;
 
-#define Vref 5000  //current
+#define Current_Vref 5000  //current
 #define current_offset	2500 //Vcc/2
 #define current_Sensitivity	185
 //-------------------HW protection links---------------------//
@@ -117,28 +159,44 @@ int main(void)
   MX_GPIO_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  HAL_ADC_Start(&hadc1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+	    /* USER CODE END WHILE */
+
+	    /* USER CODE BEGIN 3 */
+	    //------------------------------temperature-----------------------------------//
+	    ADC_Select_CH0();
+	    HAL_ADC_Start(&hadc1);
 		HAL_ADC_PollForConversion(&hadc1,1000);
-//		temp_adc_val = HAL_ADC_GetValue(&hadc1);
-//		temp_val = (temp_adc_val);	/* temp */
-//		temp_val = (temp_val/10);	/* LM35 gives output of 10mv/°C */
-//		volt_val = (volt_adc_val * Vref )/TwoPowerResolution;	/* voltage */
-//		volt=volt_val/5;  //(R2/(R1+R2))
-//		HAL_ADC_PollForConversion(&hadc1,1000);
+		ADC_Val[0] = HAL_ADC_GetValue(&hadc1);
+		HAL_ADC_Stop(&hadc1);
+		temp_val = ((ADC_Val[0]* Temp_Vref )/TwoPowerResolution)/10;	/* LM35 gives output of 10mv/°C */
+	    //------------------------------volt-----------------------------------//
+		ADC_Select_CH1();
+	    HAL_ADC_Start(&hadc1);
+	    HAL_ADC_PollForConversion(&hadc1,1000);
+	    ADC_Val[1] = HAL_ADC_GetValue(&hadc1);
+	    HAL_ADC_Stop(&hadc1);
+	    volt = (((float)ADC_Val[1] * Volt_Vref)*volt_divider_val )/TwoPowerResolution;	/* voltage */
+//		volt=volt_val*5;  //(R2/(R1+R2))
+	    //------------------------------current-----------------------------------//
+	    ADC_Select_CH2();
+		HAL_ADC_Start(&hadc1);
+		HAL_ADC_PollForConversion(&hadc1,1000);
+		ADC_Val[2] = HAL_ADC_GetValue(&hadc1);
+		HAL_ADC_Stop(&hadc1);
 		current_adc_raw = HAL_ADC_GetValue(&hadc1);
-		current_adc_volt = (current_adc_raw*Vref)/TwoPowerResolution;
+		current_adc_volt = (current_adc_raw*Current_Vref)/TwoPowerResolution;
  		current_val =(current_adc_volt - current_offset)/current_Sensitivity ;
 
-		HAL_Delay(500);
-    /* USER CODE END WHILE */
+		HAL_Delay(1000);
 
-    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
@@ -210,7 +268,7 @@ static void MX_ADC1_Init(void)
   /** Common config
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
   hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -223,16 +281,34 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN ADC1_Init 2 */
-
-  /* USER CODE END ADC1_Init 2 */
+//  sConfig.Channel = ADC_CHANNEL_0;
+//  sConfig.Rank = ADC_REGULAR_RANK_1;
+//  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//
+//  /** Configure Regular Channel
+//  */
+//  sConfig.Channel = ADC_CHANNEL_1;
+//  sConfig.Rank = ADC_REGULAR_RANK_2;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//
+//  /** Configure Regular Channel
+//  */
+//  sConfig.Channel = ADC_CHANNEL_2;
+//  sConfig.Rank = ADC_REGULAR_RANK_3;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//  /* USER CODE BEGIN ADC1_Init 2 */
+//
+//  /* USER CODE END ADC1_Init 2 */
 
 }
 
