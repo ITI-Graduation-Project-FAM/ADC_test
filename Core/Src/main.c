@@ -37,6 +37,8 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 
+
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -45,6 +47,24 @@ ADC_HandleTypeDef hadc1;
 CAN_HandleTypeDef hcan;
 
 /* USER CODE BEGIN PV */
+CAN_TxHeaderTypeDef MTxHeader;
+CAN_TxHeaderTypeDef TxHeader;
+CAN_TxHeaderTypeDef TxHeader2;
+CAN_TxHeaderTypeDef TxHeader3;
+CAN_TxHeaderTypeDef TxHeader4;
+CAN_TxHeaderTypeDef TxHeader5;
+CAN_RxHeaderTypeDef RxHeader;
+
+CAN_TxHeaderTypeDef tempTxHeader;
+
+uint8_t TxData[1]={1};
+uint8_t TxData2[8]="Abdalla";
+uint8_t TxData3[8]="Ahmed  ";
+uint8_t TxData4[8]="Fatima";
+uint8_t TxData5[8]="Mohamed";
+uint8_t RxData[8];
+uint32_t Mailbox=CAN_TX_MAILBOX0;
+uint8_t resend=0;
 
 /* USER CODE END PV */
 
@@ -54,7 +74,19 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_CAN_Init(void);
 /* USER CODE BEGIN PFP */
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+		uint8_t tempid[30]={0};
+		HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
+		tempTxHeader.DLC = RxHeader.DLC;
+		tempTxHeader.ExtId =RxHeader.ExtId;
+		tempTxHeader.IDE = RxHeader.IDE;
+		tempTxHeader.RTR =RxHeader.RTR;
+		tempTxHeader.TransmitGlobalTime =TxHeader.TransmitGlobalTime;
+		tempTxHeader.StdId =RxHeader.StdId;
+		 HAL_CAN_AddTxMessage(hcan, &tempTxHeader, RxData, &Mailbox);
 
+}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -163,7 +195,29 @@ int main(void)
   MX_ADC1_Init();
   MX_CAN_Init();
   /* USER CODE BEGIN 2 */
+  HAL_CAN_ActivateNotification(&hcan,CAN_IT_RX_FIFO0_MSG_PENDING);
+  HAL_CAN_Start(&hcan);
+  TxHeader.DLC = 1;
+   TxHeader.ExtId = 0;
+   TxHeader.IDE = CAN_ID_STD;
+   TxHeader.RTR = CAN_RTR_DATA;
+   TxHeader.TransmitGlobalTime = DISABLE;
+   TxHeader.StdId = 0x1;
 
+   TxHeader2 =TxHeader;
+   TxHeader3 =TxHeader;
+   TxHeader4 =TxHeader;
+   TxHeader5 =TxHeader;
+
+   TxHeader2.StdId=0x2;
+   TxHeader2.DLC=8;
+   TxHeader3.StdId=0x3;
+   TxHeader3.DLC=8;
+   TxHeader4.StdId=0x4;
+   TxHeader4.DLC=8;
+   TxHeader5.StdId=0x5;
+   TxHeader5.DLC=8;
+   HAL_StatusTypeDef CANSvar=HAL_ERROR;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -199,7 +253,14 @@ int main(void)
 		current_adc_volt = (current_adc_raw*Current_Vref)/TwoPowerResolution;
  		current_val =(current_adc_volt - current_offset)/current_Sensitivity ;
 
-		HAL_Delay(1000);
+ 		TxData[0]=(char)temp_val;
+ 		MTxHeader.DLC=1;
+ 		MTxHeader.StdId=0x10;
+ 		CANSvar=HAL_CAN_AddTxMessage(&hcan, &MTxHeader, TxData, &Mailbox);
+		  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+		  HAL_Delay(500);
+		  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+		  HAL_Delay(500);
 
   }
   /* USER CODE END 3 */
@@ -277,7 +338,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 3;
+  hadc1.Init.NbrOfConversion = 1;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -285,31 +346,31 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_1;
-  sConfig.Rank = ADC_REGULAR_RANK_2;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_2;
-  sConfig.Rank = ADC_REGULAR_RANK_3;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+//  sConfig.Channel = ADC_CHANNEL_0;
+//  sConfig.Rank = ADC_REGULAR_RANK_1;
+//  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//
+//  /** Configure Regular Channel
+//  */
+//  sConfig.Channel = ADC_CHANNEL_1;
+//  sConfig.Rank = ADC_REGULAR_RANK_2;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//
+//  /** Configure Regular Channel
+//  */
+//  sConfig.Channel = ADC_CHANNEL_2;
+//  sConfig.Rank = ADC_REGULAR_RANK_3;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
   /* USER CODE BEGIN ADC1_Init 2 */
 //
   /* USER CODE END ADC1_Init 2 */
@@ -348,6 +409,19 @@ static void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
+  CAN_FilterTypeDef CanFilterConfig;
+    CanFilterConfig.FilterActivation = CAN_FILTER_ENABLE;
+    CanFilterConfig.FilterBank = 0;
+    CanFilterConfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+    CanFilterConfig.FilterIdHigh = 0;
+    CanFilterConfig.FilterIdLow = 0;
+    CanFilterConfig.FilterMaskIdHigh = 0;
+    CanFilterConfig.FilterMaskIdLow = 0;
+    CanFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+    CanFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
+    CanFilterConfig.SlaveStartFilterBank = 2;
+
+    HAL_CAN_ConfigFilter(&hcan, &CanFilterConfig);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -361,13 +435,26 @@ static void MX_CAN_Init(void)
 static void MX_GPIO_Init(void)
 {
 /* USER CODE BEGIN MX_GPIO_Init_1 */
+	  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
+
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
+
 /* USER CODE BEGIN MX_GPIO_Init_2 */
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+  /*Configure GPIO pin Output Level */
+   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+
+   /*Configure GPIO pin : PC13 */
+   GPIO_InitStruct.Pin = GPIO_PIN_13;
+   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+   GPIO_InitStruct.Pull = GPIO_NOPULL;
+   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
