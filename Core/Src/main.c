@@ -43,7 +43,7 @@
 ADC_HandleTypeDef hadc1;
 
 /* USER CODE BEGIN PV */
-
+//uint8_t TxData[]="hi";
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -105,10 +105,13 @@ uint16_t ADC_Val[3];
 float temp_val;
 #define Temp_Vref 3000
 //---------------------voltage sensor----------------------------//
-#define Volt_Vref 5  //volt
+#define Volt_Vref 3.4  //volt
 float volt_val;
 float volt_divider_val=5;
 float volt=0.0;
+uint8_t check=0;
+uint8_t single_SOC;
+uint8_t triple_SOC;
 //  R1=8k;
 //  R2=2k;
 
@@ -167,9 +170,9 @@ int main(void)
   while (1)
   {
 
-	    /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-	    /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 	    //------------------------------temperature-----------------------------------//
 	    ADC_Select_CH0();
 	    HAL_ADC_Start(&hadc1);
@@ -184,6 +187,8 @@ int main(void)
 	    ADC_Val[1] = HAL_ADC_GetValue(&hadc1);
 	    HAL_ADC_Stop(&hadc1);
 	    volt = (((float)ADC_Val[1] * Volt_Vref)*volt_divider_val )/TwoPowerResolution;	/* voltage */
+	    single_SOC=(volt-3)*100;
+	    triple_SOC=((volt-9)*100)/3;
 //		volt=volt_val*5;  //(R2/(R1+R2))
 	    //------------------------------current-----------------------------------//
 	    ADC_Select_CH2();
@@ -194,6 +199,31 @@ int main(void)
 		current_adc_raw = HAL_ADC_GetValue(&hadc1);
 		current_adc_volt = (current_adc_raw*Current_Vref)/TwoPowerResolution;
  		current_val =(current_adc_volt - current_offset)/current_Sensitivity ;
+ 		if((uint8_t)volt<=9)
+ 		{
+ 			//disconnect (under voltage) and connect charger
+ 			check=9;
+ 		}
+ 		else if((uint8_t)volt>12)
+ 		{
+ 			//disconnect charger (over voltage)
+ 			check=12;
+ 		}
+ 		else if(triple_SOC<50)
+ 		{
+ 			//PWM=40%
+ 			check=50;
+ 		}
+ 		else
+ 		{
+ 			check=95;
+ 		}
+// 		HAL_UART_Transmit(&huart1, TxData, sizeof(TxData), 1000);
+// 		HAL_UART_Transmit(&huart1,(const uint8_t *)"\n", 2, 1000);
+// 		HAL_UART_Transmit(&huart1, ADC_Val[1], sizeof(ADC_Val), 1000);
+// 		HAL_UART_Transmit(&huart1, "\n", 1, 1000);
+// 		HAL_UART_Transmit(&huart1, ADC_Val[2], sizeof(ADC_Val), 1000);
+// 		HAL_UART_Transmit(&huart1, "\n", 1, 1000);
 
 		HAL_Delay(1000);
 
@@ -273,7 +303,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.NbrOfConversion = 3;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
@@ -281,34 +311,34 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-//  sConfig.Channel = ADC_CHANNEL_0;
-//  sConfig.Rank = ADC_REGULAR_RANK_1;
-//  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
-//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
 //
-//  /** Configure Regular Channel
-//  */
-//  sConfig.Channel = ADC_CHANNEL_1;
-//  sConfig.Rank = ADC_REGULAR_RANK_2;
-//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//
-//  /** Configure Regular Channel
-//  */
-//  sConfig.Channel = ADC_CHANNEL_2;
-//  sConfig.Rank = ADC_REGULAR_RANK_3;
-//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-//  {
-//    Error_Handler();
-//  }
-//  /* USER CODE BEGIN ADC1_Init 2 */
-//
-//  /* USER CODE END ADC1_Init 2 */
+  /* USER CODE END ADC1_Init 2 */
 
 }
 
@@ -319,12 +349,23 @@ static void MX_ADC1_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_4, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : PA3 PA4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
