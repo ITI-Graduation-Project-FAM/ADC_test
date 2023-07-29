@@ -102,7 +102,7 @@ uint16_t ADC_Val[3];
 
 #define TwoPowerResolution	4096   //12 bit res
 //---------------------Temperature sensor----------------------------//
-float temp_val;
+uint8_t temp_val;
 #define Temp_Vref 3000
 //---------------------voltage sensor----------------------------//
 #define Volt_Vref 3.4  //volt
@@ -114,6 +114,7 @@ uint8_t single_SOC;
 uint8_t triple_SOC;
 //  R1=8k;
 //  R2=2k;
+
 
 //---------------------current sensor----------------------------//
 //website
@@ -199,25 +200,74 @@ int main(void)
 		current_adc_raw = HAL_ADC_GetValue(&hadc1);
 		current_adc_volt = (current_adc_raw*Current_Vref)/TwoPowerResolution;
  		current_val =(current_adc_volt - current_offset)/current_Sensitivity ;
+ 		//pin3=set >connect to system
+ 		//pin3=reset >connect to float
+ 		//pin4=set >connect to float
+ 		//pin4=reset >connect to charger
  		if((uint8_t)volt<=9)
  		{
- 			//disconnect (under voltage) and connect charger
- 			check=9;
+ 			//disconnect system (under voltage) and connect charger
+ 			check=1;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
  		}
  		else if((uint8_t)volt>12)
  		{
- 			//disconnect charger (over voltage)
- 			check=12;
+ 			//disconnect charger (over voltage) max PWM
+ 			check=2;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
  		}
- 		else if(triple_SOC<50)
+ 		else if(temp_val>50)
  		{
- 			//PWM=40%
- 			check=50;
+ 			//disconnect all
+ 			check=3;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+ 		}
+ 		else if((uint8_t)current_val>1)
+ 		{
+ 			//disconnect all
+ 			check=4;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+ 		}
+ 		else if((uint8_t)current_val>0.8)
+ 		{
+ 			//warning
+ 			check=5;
+
+ 		}
+ 		else if(50>temp_val && temp_val>45)
+ 		{
+ 			//PWM 40%
+ 			check=6;
+
+ 		}
+ 		else if(45>temp_val && temp_val>40)
+ 		{
+ 			//PWM 60%
+ 			check=7;
+
+ 		}
+ 		else if(40>triple_SOC && triple_SOC>10)
+ 		{
+ 			//PWM 40% + warning
+ 			check=8;
+
+ 		}
+ 		else if(40>temp_val && temp_val>35)
+ 		{
+ 			//PWM 80% + warning
+ 			check=9;
+
  		}
  		else
  		{
- 			check=95;
+ 			check=10;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_4, GPIO_PIN_SET);
  		}
+
+
 // 		HAL_UART_Transmit(&huart1, TxData, sizeof(TxData), 1000);
 // 		HAL_UART_Transmit(&huart1,(const uint8_t *)"\n", 2, 1000);
 // 		HAL_UART_Transmit(&huart1, ADC_Val[1], sizeof(ADC_Val), 1000);
@@ -303,39 +353,39 @@ static void MX_ADC1_Init(void)
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.NbrOfConversion = 3;
+  hadc1.Init.NbrOfConversion = 1;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
   }
 
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_0;
-  sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_1;
-  sConfig.Rank = ADC_REGULAR_RANK_2;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Configure Regular Channel
-  */
-  sConfig.Channel = ADC_CHANNEL_2;
-  sConfig.Rank = ADC_REGULAR_RANK_3;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+//  /** Configure Regular Channel
+//  */
+//  sConfig.Channel = ADC_CHANNEL_0;
+//  sConfig.Rank = ADC_REGULAR_RANK_1;
+//  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//
+//  /** Configure Regular Channel
+//  */
+//  sConfig.Channel = ADC_CHANNEL_1;
+//  sConfig.Rank = ADC_REGULAR_RANK_2;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
+//
+//  /** Configure Regular Channel
+//  */
+//  sConfig.Channel = ADC_CHANNEL_2;
+//  sConfig.Rank = ADC_REGULAR_RANK_3;
+//  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+//  {
+//    Error_Handler();
+//  }
   /* USER CODE BEGIN ADC1_Init 2 */
 //
   /* USER CODE END ADC1_Init 2 */
