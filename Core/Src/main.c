@@ -47,6 +47,7 @@ ADC_HandleTypeDef hadc1;
 CAN_HandleTypeDef hcan;
 
 /* USER CODE BEGIN PV */
+
 CAN_TxHeaderTypeDef MTxHeader;
 CAN_TxHeaderTypeDef TxHeader;
 CAN_TxHeaderTypeDef TxHeader2;
@@ -65,6 +66,7 @@ uint8_t TxData5[8]="Mohamed";
 uint8_t RxData[8];
 uint32_t Mailbox=CAN_TX_MAILBOX0;
 uint8_t resend=0;
+
 
 /* USER CODE END PV */
 
@@ -137,15 +139,19 @@ uint16_t ADC_Val[3];
 
 #define TwoPowerResolution	4096   //12 bit res
 //---------------------Temperature sensor----------------------------//
-float temp_val;
+uint8_t temp_val;
 #define Temp_Vref 3000
 //---------------------voltage sensor----------------------------//
-#define Volt_Vref 5  //volt
+#define Volt_Vref 3.4  //volt
 float volt_val;
 float volt_divider_val=5;
 float volt=0.0;
+uint8_t check=0;
+uint8_t single_SOC;
+uint8_t triple_SOC;
 //  R1=8k;
 //  R2=2k;
+
 
 //---------------------current sensor----------------------------//
 //website
@@ -242,6 +248,8 @@ int main(void)
 	    ADC_Val[1] = HAL_ADC_GetValue(&hadc1);
 	    HAL_ADC_Stop(&hadc1);
 	    volt = (((float)ADC_Val[1] * Volt_Vref)*volt_divider_val )/TwoPowerResolution;	/* voltage */
+	    single_SOC=(volt-3)*100;
+	    triple_SOC=((volt-9)*100)/3;
 //		volt=volt_val*5;  //(R2/(R1+R2))
 	    //------------------------------current-----------------------------------//
 	    ADC_Select_CH2();
@@ -252,6 +260,80 @@ int main(void)
 		current_adc_raw = HAL_ADC_GetValue(&hadc1);
 		current_adc_volt = (current_adc_raw*Current_Vref)/TwoPowerResolution;
  		current_val =(current_adc_volt - current_offset)/current_Sensitivity ;
+ 		//pin3=set >connect to system
+ 		//pin3=reset >connect to float
+ 		//pin4=set >connect to float
+ 		//pin4=reset >connect to charger
+ 		if((uint8_t)volt<=9)
+ 		{
+ 			//disconnect system (under voltage) and connect charger
+ 			check=1;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+ 		}
+ 		else if((uint8_t)volt>12)
+ 		{
+ 			//disconnect charger (over voltage) max PWM
+ 			check=2;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+ 		}
+ 		else if(temp_val>50)
+ 		{
+ 			//disconnect all
+ 			check=3;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+ 		}
+ 		else if((uint8_t)current_val>1)
+ 		{
+ 			//disconnect all
+ 			check=4;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+ 		}
+ 		else if((uint8_t)current_val>0.8)
+ 		{
+ 			//warning
+ 			check=5;
+
+ 		}
+ 		else if(50>temp_val && temp_val>45)
+ 		{
+ 			//PWM 40%
+ 			check=6;
+
+ 		}
+ 		else if(45>temp_val && temp_val>40)
+ 		{
+ 			//PWM 60%
+ 			check=7;
+
+ 		}
+ 		else if(40>triple_SOC && triple_SOC>10)
+ 		{
+ 			//PWM 40% + warning
+ 			check=8;
+
+ 		}
+ 		else if(40>temp_val && temp_val>35)
+ 		{
+ 			//PWM 80% + warning
+ 			check=9;
+
+ 		}
+ 		else
+ 		{
+ 			check=10;
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_4, GPIO_PIN_SET);
+ 		}
+
+
+// 		HAL_UART_Transmit(&huart1, TxData, sizeof(TxData), 1000);
+// 		HAL_UART_Transmit(&huart1,(const uint8_t *)"\n", 2, 1000);
+// 		HAL_UART_Transmit(&huart1, ADC_Val[1], sizeof(ADC_Val), 1000);
+// 		HAL_UART_Transmit(&huart1, "\n", 1, 1000);
+// 		HAL_UART_Transmit(&huart1, ADC_Val[2], sizeof(ADC_Val), 1000);
+// 		HAL_UART_Transmit(&huart1, "\n", 1, 1000);
 
  		TxData[0]=(char)temp_val;
  		MTxHeader.DLC=1;
@@ -344,8 +426,8 @@ static void MX_ADC1_Init(void)
     Error_Handler();
   }
 
-  /** Configure Regular Channel
-  */
+//  /** Configure Regular Channel
+//  */
 //  sConfig.Channel = ADC_CHANNEL_0;
 //  sConfig.Rank = ADC_REGULAR_RANK_1;
 //  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
@@ -374,6 +456,7 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 //
   /* USER CODE END ADC1_Init 2 */
+
 
 }
 
@@ -425,6 +508,7 @@ static void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 2 */
 
+
 }
 
 /**
@@ -434,6 +518,7 @@ static void MX_CAN_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 	  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE END MX_GPIO_Init_1 */
@@ -442,6 +527,17 @@ static void MX_GPIO_Init(void)
 
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_4, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : PA3 PA4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
