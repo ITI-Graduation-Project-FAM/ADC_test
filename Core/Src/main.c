@@ -42,6 +42,8 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+TIM_HandleTypeDef htim4;
+
 /* USER CODE BEGIN PV */
 //uint8_t TxData[]="hi";
 /* USER CODE END PV */
@@ -50,6 +52,7 @@ ADC_HandleTypeDef hadc1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -131,6 +134,9 @@ float current_adc_raw;
 //-------------------HW protection links---------------------//
 //https://www.circuits-diy.com/short-circuit-protection-circuit/
 
+//--------------------motor------------------------------------//
+uint16_t  speed=900; //900 to 100
+
 /* USER CODE END 0 */
 
 /**
@@ -162,7 +168,13 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_ADC1_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_PWM_Start(&htim4,TIM_CHANNEL_1 );
+  //Motor initial direction
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_11, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12, GPIO_PIN_SET);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, speed);
 
   /* USER CODE END 2 */
 
@@ -200,36 +212,38 @@ int main(void)
 		current_adc_raw = HAL_ADC_GetValue(&hadc1);
 		current_adc_volt = (current_adc_raw*Current_Vref)/TwoPowerResolution;
  		current_val =(current_adc_volt - current_offset)/current_Sensitivity ;
- 		//pin3=set >connect to system
- 		//pin3=reset >connect to float
- 		//pin4=set >connect to float
- 		//pin4=reset >connect to charger
+ 		//reset to active
+ 		//pin3=set >connect to float
+ 		//pin3=reset >connect to charger
+ 		//pin4=set >connect to  system
+ 		//pin4=reset >connect to float
  		if((uint8_t)volt<=9)
  		{
  			//disconnect system (under voltage) and connect charger
  			check=1;
- 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
  			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
  		}
  		else if((uint8_t)volt>12)
  		{
  			//disconnect charger (over voltage) max PWM
  			check=2;
  			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
  		}
  		else if(temp_val>50)
  		{
  			//disconnect all
  			check=3;
- 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
- 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
  		}
  		else if((uint8_t)current_val>1)
  		{
  			//disconnect all
  			check=4;
- 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
- 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+ 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
  		}
  		else if((uint8_t)current_val>0.8)
  		{
@@ -241,29 +255,36 @@ int main(void)
  		{
  			//PWM 40%
  			check=6;
+ 			speed=250;
+ 			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, speed);
 
  		}
  		else if(45>temp_val && temp_val>40)
  		{
  			//PWM 60%
  			check=7;
-
+ 			speed=500;
+ 			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, speed);
  		}
  		else if(40>triple_SOC && triple_SOC>10)
  		{
  			//PWM 40% + warning
  			check=8;
-
+ 			speed=250;
+ 			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, speed);
  		}
  		else if(40>temp_val && temp_val>35)
  		{
  			//PWM 80% + warning
  			check=9;
-
+ 			speed=700;
+ 			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, speed);
  		}
  		else
  		{
  			check=10;
+ 			speed=900;
+ 			__HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, speed);
  			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_4, GPIO_PIN_SET);
  		}
 
@@ -393,6 +414,65 @@ static void MX_ADC1_Init(void)
 }
 
 /**
+  * @brief TIM4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM4_Init(void)
+{
+
+  /* USER CODE BEGIN TIM4_Init 0 */
+
+  /* USER CODE END TIM4_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 7200-1;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 1000;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_Init(&htim4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 100;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
+
+  /* USER CODE END TIM4_Init 2 */
+  HAL_TIM_MspPostInit(&htim4);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -406,6 +486,7 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_4, GPIO_PIN_RESET);
